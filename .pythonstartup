@@ -1,0 +1,124 @@
+# set the PYTHONSTARTUP env var to this file
+from __future__ import division
+
+import sys, os, re, io, string
+from functools import reduce
+from subprocess import check_output
+from collections import *
+from pprint import pprint as pp
+import struct
+
+
+sys.stderr.write("Running %s\n" % sys.executable)
+
+if sys.version_info.major == 2:
+    import readline, rlcompleter
+    readline.parse_and_bind("tab: complete")
+
+
+xclip = lambda: check_output(['xclip', '-o']).decode("utf-8")
+merge = lambda *dicts: {k:v for dikt in dicts for k,v in dikt}
+count = lambda it: sum(1 for _ in it)
+group = lambda l, gs: [l[gs*i:gs*i+gs] for i in range(len(l)//gs)]
+
+p32 = lambda x, signed=False: struct.pack("Ii"[signed], x)
+u32 = lambda x, signed=False: struct.unpack("Ii"[signed], x)[0]
+p64 = lambda x, signed=False: struct.pack("Qq"[signed], x)
+u64 = lambda x, signed=False: struct.unpack("Qq"[signed], x)[0]
+
+
+class Pipe(object):
+    __init__ = lambda s, f, *a, **k: s.__dict__.update(f=f, a=a, k=k)
+    __ror__  = lambda s, x: s.f(x, *s.a, **s.k)
+    __call__ = lambda s: s
+
+
+class Redir(object):
+    __init__ = lambda s, n: s.__dict__.update(n=n)
+    def __rrshift__(s, x):
+        m = "wb" if isinstance(x, (bytes, bytearray)) else "wt"
+        with open(s.n, m) as fp:
+            fp.write(x)
+    
+
+class MagicPipe(object):
+    def __init__(self, ismap=False, ops=None):
+        self.__ismap = bool(ismap)
+        self.__ops = ops or []
+
+    def __with(self, op):
+        return self.__class__(ismap=self.__ismap, ops=self.__ops + [op])
+
+    def __getitem__(self, key):
+        return self.__with(lambda x: x[key])
+
+    def __getattr__(self, key):
+        if key in self.__dict__:
+            return self.__dict__[key]
+        return self.__with(lambda x: getattr(x, key))
+        
+    def __call__(self, *args, **kwargs):
+        return self.__with(lambda x: x(*args, **kwargs))
+
+    def __ror__(self, other):
+        f = lambda init: reduce(lambda x, f: f(x), self.__ops, init)
+        return (f(x) for x in other) if self.__ismap else f(other)
+
+
+class Helper(object):
+    __ror__ = __sub__ = __rsub__ = __call__ = lambda self, x: help(x)
+
+
+P = Pipe
+M = lambda f,*a,**k: Pipe(lambda it: (f(e,*a,**k) for e in it))        # map
+F = lambda f,*a,**k: Pipe(lambda it: (e for e in it if f(e,*a,**k)))   # filter
+J = lambda sep="": Pipe(lambda it: sep.join(map(type(sep), it)))       # join
+L, S, D, PP = map(Pipe, [list, set, dict, pp])   
+
+A = MagicPipe(False)   # apply to argument on the left
+E = MagicPipe(True)    # apply to the elements of the argument on the left
+
+FILE = Redir
+HEAD = Pipe(lambda it: [e for i, e in enumerate(it) if i < 10])
+TAIL = Pipe(lambda it: list(deque(it, 10)))
+FLAT = Pipe(lambda it: (e for ee in it for e in ee))
+GREP = lambda pat: F(lambda s: re.search(pat, type(pat)(s)))
+GREPV = lambda pat: F(lambda s: not re.search(pat, type(pat)(s)))
+GREPO = lambda pat: Pipe(lambda it: it | M(lambda s: re.findall(pat, type(pat)(s))) | F(bool) | FLAT)
+TAC = Pipe(lambda it: reversed(list(it)))
+REV = Pipe(lambda it: (e[::-1] for e in it))
+WC  = Pipe(count)
+
+h = H = Helper() 
+
+def hook_display():
+    try:                
+        import builtins
+    except ImportError: 
+        import __builtin__ as builtins
+    long = getattr(builtins, "long", int)
+
+    def displayhook(thing):
+        if type(thing) not in (int, long):
+            sys.__displayhook__(thing)
+            return
+        builtins._ = thing
+        for fmt in "IiQq":
+            try:
+                packed = struct.pack(fmt, thing)
+                break
+            except struct.error:
+                packed = ""
+        sys.stdout.write("%d\t0x%x\t%r\n" % (thing, thing, packed))
+
+    sys.displayhook = displayhook
+
+hook_display()
+
+
+try:
+    os.environ["PWNLIB_NOTERM"] = "1"
+    from pwn import *
+except:
+    pass
+
