@@ -1,0 +1,8 @@
+[options]
+# font = Source Code Pro
+scrollback_lines = -1
+
+[colors]
+background = #000000
+foreground = #fafafa
+color12    = #4080ff

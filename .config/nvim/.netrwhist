@@ -1,0 +1,6 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhist_cnt =4
+let g:netrw_dirhist_1='/home/pgy/letöltések/udp/traces2'
+let g:netrw_dirhist_2='/home/pgy/git/nook/nook_1_2_update/system/framework/am.out'
+let g:netrw_dirhist_3='/home/pgy/letöltések/keygenme/k'
+let g:netrw_dirhist_4='/home/pgy/sources/linux'
