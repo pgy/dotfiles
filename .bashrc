@@ -39,8 +39,13 @@ greprop() {
 }
 
 def() {
-    rg "(#define|class|struct|typedef|def |__prototype__).*$1"
+    rg "(#define|class|struct|typedef|def |__prototype__|using|constexpr|enum).*$1"
 }
+
+bindiff() {
+    eval "vimdiff $(builtin printf ' <(xxd %q)' "$@")"
+}
+
 
 export PYTHONSTARTUP="$HOME/.pythonstartup"
 export PYTHONDONTWRITEBYTECODE=1
